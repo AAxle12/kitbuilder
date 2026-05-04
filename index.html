@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Detroit Axle | Master Kit Fitment Merger</title>
+    
+    <!-- MIDNIGHT THEME -->
+    <link href="https://unpkg.com/tabulator-tables@5.5.0/dist/css/tabulator_midnight.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/tabulator-tables@5.5.0/dist/js/tabulator.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <style>
+        :root { 
+            --da-blue: #0079ad; --da-neon: #00a8e8; --da-dark-bg: #0b0c10; 
+            --da-card-bg: rgba(26, 26, 36, 0.95); --da-input-bg: rgba(10, 10, 15, 0.8); 
+            --da-border: #2a2a35; --text-main: #e2e8f0; --text-dim: #94a3b8; 
+            --success-green: #10b981; --warning-red: #e53e3e; --warning-orange: #f59e0b;
+        }
+
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: radial-gradient(circle at top, #161b22, var(--da-dark-bg));
+            background-attachment: fixed; color: var(--text-main); margin: 0; padding: 25px;
+            display: flex; flex-direction: column; align-items: center; min-height: 100vh;
+        }
+
+        .da-container { 
+            background: var(--da-card-bg); border: 1px solid rgba(0, 121, 173, 0.3);
+            border-radius: 16px; width: 100%; max-width: 1600px; 
+            box-shadow: 0 20px 60px rgba(0,0,0,0.8); overflow: hidden; backdrop-filter: blur(20px);
+            display: flex; flex-direction: column;
+        }
+
+        .da-header {
+            background: linear-gradient(90deg, #11151c, #0a0c10); padding: 25px 35px;
+            border-bottom: 2px solid var(--da-blue); display: flex; justify-content: space-between; align-items: center;
+        }
+        .da-header h1 { margin: 0; color: #fff; font-size: 24px; letter-spacing: 2px; text-transform: uppercase; }
+        .da-header h1 span { color: var(--da-neon); }
+
+        .upload-section {
+            background: rgba(0, 121, 173, 0.05); padding: 15px 35px; border-bottom: 1px solid var(--da-border);
+            cursor: pointer; color: var(--da-neon); font-weight: 600; text-align: center;
+            transition: 0.3s; letter-spacing: 1px; display: flex; justify-content: space-between; align-items: center;
+        }
+        .upload-section:hover { background: rgba(0, 121, 173, 0.15); }
+
+        .settings-bar {
+            display: flex; align-items: center; gap: 15px; font-size: 13px; color: #fff;
+        }
+        .settings-bar select {
+            background: #111; color: var(--da-neon); border: 1px solid var(--da-blue); padding: 5px 10px; border-radius: 4px; outline: none; font-weight: bold;
+        }
+
+        .control-panel { padding: 25px 35px; border-bottom: 1px solid var(--da-border); display: flex; gap: 20px; }
+        
+        .paste-grid { 
+            flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; 
+        }
+        
+        .paste-box { display: flex; flex-direction: column; }
+        .paste-box label { font-size: 11px; color: var(--da-neon); font-weight: bold; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 1px;}
+        .paste-box textarea {
+            width: 100%; height: 160px; padding: 12px; border-radius: 8px; border: 1px solid #334;
+            background: var(--da-input-bg); color: #fff; font-family: monospace; font-size: 11px; 
+            outline: none; box-sizing: border-box; white-space: pre; overflow-wrap: normal; overflow-x: auto;
+        }
+        .paste-box textarea:focus { border-color: var(--da-neon); box-shadow: 0 0 10px rgba(0, 168, 232, 0.2); }
+
+        .btn-panel { display: flex; flex-direction: column; justify-content: center; gap: 12px; width: 200px; }
+        
+        .action-btn {
+            background: rgba(0, 168, 232, 0.1); color: var(--da-neon); border: 1px solid var(--da-neon); 
+            padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; text-transform: uppercase;
+            transition: all 0.3s ease; letter-spacing: 1px; font-size: 12px;
+        }
+        .action-btn:hover { background: var(--da-neon); color: #fff; box-shadow: 0 0 15px rgba(0, 168, 232, 0.4);}
+        
+        .add-btn { background: rgba(245, 158, 11, 0.1); color: var(--warning-orange); border: 1px solid var(--warning-orange); }
+        .add-btn:hover { background: var(--warning-orange); color: #fff; box-shadow: 0 0 15px rgba(245, 158, 11, 0.4); }
+
+        .copy-btn { background: rgba(16, 185, 129, 0.1); color: var(--success-green); border: 1px solid var(--success-green); }
+        .copy-btn:hover { background: var(--success-green); color: #fff; box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);}
+
+        .table-container { padding: 25px; flex: 1; min-height: 450px; background: #0b0c10; }
+        
+        /* STRICT DARK MODE OVERRIDE FOR TABULATOR */
+        .tabulator { background-color: #0b0c10 !important; border: 1px solid #2a2a35 !important; font-size: 12px;}
+        .tabulator .tabulator-header { background-color: #0b0c10 !important; border-bottom: 2px solid var(--da-blue) !important; }
+        .tabulator .tabulator-header .tabulator-col { background-color: #11151c !important; border-right: 1px solid #2a2a35 !important; color: var(--da-neon) !important; font-weight: bold;}
+        
+        .tabulator-row { background-color: #1a1a24 !important; color: #ffffff !important; border-bottom: 1px solid #2a2a35 !important;}
+        .tabulator-row.tabulator-row-even { background-color: #11131a !important; }
+        .tabulator-row:hover { background-color: #1e2436 !important; }
+        .tabulator-cell { color: #ffffff !important; border-right: 1px solid rgba(255,255,255,0.05) !important; }
+        
+        /* Editable Cells */
+        .tabulator-row .col-editable { background-color: rgba(0, 168, 232, 0.15) !important; border-left: 2px solid var(--da-neon) !important; font-weight: bold; cursor: text;}
+        .tabulator-row .col-editable:hover { background-color: rgba(0, 168, 232, 0.3) !important; }
+        
+        .tabulator-row .tabulator-cell.tabulator-editable { cursor: text; }
+        .tabulator-row .tabulator-cell.tabulator-editable:hover { background-color: rgba(255,255,255,0.1) !important; }
+
+        .status-badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; display: inline-block; width: 100%; box-sizing: border-box;}
+        .status-ok { background: rgba(16, 185, 129, 0.2); color: var(--success-green); border: 1px solid var(--success-green); }
+        .status-conflict { background: rgba(229, 62, 62, 0.2); color: var(--warning-red); border: 1px solid var(--warning-red); animation: pulse 2s infinite;}
+        .status-db-error { background: rgba(245, 158, 11, 0.2); color: var(--warning-orange); border: 1px solid var(--warning-orange); animation: pulse 2s infinite;}
+        .status-manual { background: rgba(0, 168, 232, 0.2); color: var(--da-neon); border: 1px solid var(--da-neon); }
+        
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(229, 62, 62, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(229, 62, 62, 0); } 100% { box-shadow: 0 0 0 0 rgba(229, 62, 62, 0); } }
+
+        #loading { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5,5,10,0.9); z-index: 999; color: var(--da-neon); font-size: 20px; font-weight: bold; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(5px);}
+        .spinner { border: 5px solid rgba(0,121,173,0.1); border-top: 5px solid var(--da-blue); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 15px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div class="da-container">
+    <div class="da-header">
+        <h1>DETROIT <span>AXLE</span> | MULTI-KIT MERGER</h1>
+        <div style="font-size: 12px; color: #888;">Validates Kit combinations directly against the Master Catalog</div>
+    </div>
+
+    <div class="upload-section">
+        <div onclick="document.getElementById('db-upload').click()" style="flex: 1; text-align: left;">
+            <span id="upload-txt">1. UPLOAD MASTER VEHICLE DB (.CSV) TO ENABLE VALIDATION</span>
+            <input type="file" id="db-upload" style="display:none" accept=".csv, .xlsx, .xls">
+        </div>
+        <div class="settings-bar" onclick="event.stopPropagation()">
+            <label>Number of Kit Components:</label>
+            <select id="numComps" onchange="updateCompUI()">
+                <option value="2" selected>2 Tables</option>
+                <option value="3">3 Tables</option>
+                <option value="4">4 Tables</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="control-panel">
+        <div class="paste-grid" id="paste-grid">
+            <div class="paste-box" id="boxA">
+                <label>Comp A (e.g. Front Pads)</label>
+                <textarea id="compA" placeholder="2007&#9;DODGE&#9;CHARGER&#9;Base RWD"></textarea>
+            </div>
+            <div class="paste-box" id="boxB">
+                <label>Comp B (e.g. Rear Pads)</label>
+                <textarea id="compB" placeholder="2007&#9;DODGE&#9;CHARGER&#9;RWD"></textarea>
+            </div>
+            <div class="paste-box" id="boxC" style="display:none;">
+                <label>Comp C (e.g. Front Rotors)</label>
+                <textarea id="compC" placeholder="Paste data..."></textarea>
+            </div>
+            <div class="paste-box" id="boxD" style="display:none;">
+                <label>Comp D (e.g. Rear Rotors)</label>
+                <textarea id="compD" placeholder="Paste data..."></textarea>
+            </div>
+        </div>
+        <div class="btn-panel">
+            <button class="action-btn" onclick="mergeKits()">⚡ Validate & Merge</button>
+            <button class="action-btn add-btn" onclick="addCustomRow()">➕ Add Custom Row</button>
+            <button class="action-btn copy-btn" id="copyBtn" onclick="copyFinalData()">📋 Copy Final Table</button>
+        </div>
+    </div>
+
+    <div class="table-container">
+        <div id="merge-table"></div>
+    </div>
+</div>
+
+<div id="loading">
+    <div class="spinner"></div>
+    <div id="loading-msg">PROCESSING MASTER DB...</div>
+</div>
+
+<script>
+    let dbTree = {}; 
+    let knownMakes = [];
+    let currentComps = 2;
+
+    const table = new Tabulator("#merge-table", {
+        data: [], layout: "fitColumns", height: "100%",
+        columns: getDynamicColumns(2)
+    });
+
+    function getDynamicColumns(num) {
+        let cols = [
+            {
+                title: "Del", width: 40, hozAlign: "center", headerSort: false,
+                formatter: function() { return "<span style='color:#e53e3e; font-size:16px; font-weight:bold; cursor:pointer;'>✕</span>"; },
+                cellClick: function(e, cell) { cell.getRow().delete(); }
+            },
+            {title: "Status", field: "status", width: 130, hozAlign: "center", formatter: function(cell){
+                let val = cell.getValue();
+                if(val === "CONFLICT") return `<span class="status-badge status-conflict">❌ CONFLICT</span>`;
+                if(val === "NO_DB") return `<span class="status-badge status-db-error">❓ NOT IN DB</span>`;
+                if(val === "MANUAL") return `<span class="status-badge status-manual">🛠️ CUSTOM ROW</span>`;
+                return `<span class="status-badge status-ok">✓ VERIFIED</span>`;
+            }},
+            {title: "Year", field: "year", width: 60, editor: "input"},
+            {title: "Make", field: "make", width: 100, editor: "input"},
+            {title: "Model", field: "model", width: 120, editor: "input"}
+        ];
+
+        for(let i=0; i<num; i++) {
+            let letter = String.fromCharCode(65+i);
+            cols.push({title: `Comp ${letter}`, field: `callout${letter}`, width: 150, editor: "input"});
+        }
+
+        cols.push({title: "✎ Final Callout", field: "finalCallout", editor: "input", cssClass: "col-editable"});
+        return cols;
+    }
+
+    function updateCompUI() {
+        currentComps = parseInt(document.getElementById('numComps').value);
+        document.getElementById('boxC').style.display = currentComps >= 3 ? 'flex' : 'none';
+        document.getElementById('boxD').style.display = currentComps >= 4 ? 'flex' : 'none';
+        
+        table.setColumns(getDynamicColumns(currentComps));
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        if(e.key === "Delete" || e.key === "Backspace") {
+            const selected = table.getSelectedRows();
+            if(selected.length > 0) { e.preventDefault(); selected.forEach(row => row.delete()); }
+        }
+    });
+
+    function escapeRegExp(string) { return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+    function addCustomRow() {
+        let rowData = { status: "MANUAL", year: "YYYY", make: "MAKE", model: "MODEL", finalCallout: "Type manual callout here..." };
+        for(let i=0; i<currentComps; i++) rowData['callout'+String.fromCharCode(65+i)] = "";
+        table.addRow(rowData, true);
+    }
+
+    // --- MASTER DB PARSING LOGIC ---
+    document.getElementById('db-upload').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const isCSV = file.name.toLowerCase().endsWith('.csv');
+        document.getElementById('loading').style.display = 'flex';
+        document.getElementById('loading-msg').innerText = "BUILDING MASTER DICTIONARY...";
+
+        if (isCSV) {
+            Papa.parse(file, {
+                header: true, skipEmptyLines: true, worker: true,
+                complete: function(results) { buildCompressedTree(results.data); },
+                error: function(err) { alert("Error parsing CSV."); document.getElementById('loading').style.display = 'none'; }
+            });
+        } else {
+            setTimeout(() => {
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    const wb = XLSX.read(new Uint8Array(evt.target.result), {type: 'array'});
+                    const sheet = wb.Sheets[wb.SheetNames[0]];
+                    const data = XLSX.utils.sheet_to_json(sheet, {defval: ""});
+                    buildCompressedTree(data);
+                };
+                reader.readAsArrayBuffer(file);
+            }, 100);
+        }
+    });
+
+    function buildCompressedTree(data) {
+        if(data.length === 0) {
+            document.getElementById('loading').style.display = 'none';
+            return alert("File is empty.");
+        }
+
+        let keys = Object.keys(data[0]);
+        let kMake = keys.find(k => k.toLowerCase() === 'make') || keys.find(k => k.toLowerCase().includes('make')) || "";
+        let kModel = keys.find(k => k.toLowerCase() === 'model') || keys.find(k => k.toLowerCase().includes('model')) || "";
+        let kYear = keys.find(k => k.toLowerCase() === 'year') || keys.find(k => k.toLowerCase().includes('year')) || "";
+        let kSub = keys.find(k => k.toLowerCase() === 'sub-model') || keys.find(k => k.toLowerCase().includes('sub')) || "";
+        let kLiter = keys.find(k => k.toLowerCase() === 'liter') || "";
+        let kDrive = keys.find(k => k.toLowerCase() === 'drive type') || keys.find(k => k.toLowerCase().includes('drive')) || "";
+        let kCyl = keys.find(k => k.toLowerCase() === 'cyl' || k.toLowerCase() === 'cylinders' || k.toLowerCase() === 'engine' || k.toLowerCase() === 'engine type') || "";
+        
+        let standardKeys = [kMake, kModel, kYear, kSub, kLiter, kDrive, kCyl].map(k => k.toLowerCase());
+        let auxKeys = keys.filter(k => !standardKeys.includes(k.toLowerCase()) && !/date|agent|part|position|link|notes|region/i.test(k));
+
+        dbTree = {}; 
+
+        for (let i = 0; i < data.length; i++) {
+            let row = data[i];
+            let mk = String(row[kMake] || "").trim().toUpperCase();
+            let md = String(row[kModel] || "").trim().toUpperCase();
+            let yr = String(row[kYear] || "").trim();
+            
+            let sub = kSub ? String(row[kSub]).trim() : "";
+            let driveNorm = kDrive ? String(row[kDrive]).trim().toUpperCase() : "";
+            let cylNorm = kCyl ? String(row[kCyl]).trim() : "";
+            let literVal = kLiter ? String(row[kLiter]).trim() : "";
+            let literNorm = !isNaN(parseFloat(literVal)) ? parseFloat(literVal).toFixed(1) : literVal; 
+
+            let dynamicAttrs = [];
+            auxKeys.forEach(k => {
+                let val = String(row[k] || "").trim();
+                if (val && val.length > 1) dynamicAttrs.push(val);
+            });
+
+            if (!mk || !md || !yr) continue;
+
+            if (!dbTree[mk]) dbTree[mk] = {};
+            if (!dbTree[mk][md]) dbTree[mk][md] = {};
+            if (!dbTree[mk][md][yr]) dbTree[mk][md][yr] = [];
+            
+            dbTree[mk][md][yr].push({ 
+                sub: sub, liter: literNorm, drive: driveNorm, cyl: cylNorm, attrs: dynamicAttrs 
+            });
+        }
+
+        knownMakes = Object.keys(dbTree).sort((a,b) => b.length - a.length);
+        data = null; 
+
+        document.getElementById('upload-txt').innerText = `✓ MASTER CATALOG SECURED: MULTI-DB VALIDATION ACTIVE`;
+        document.getElementById('upload-txt').style.color = 'var(--success-green)';
+        document.querySelector('.upload-section').style.borderBottom = '2px solid var(--success-green)';
+        document.getElementById('loading').style.display = 'none';
+    }
+
+    function parsePasteAsArray(text) {
+        let lines = text.split(/\r?\n/).filter(l => l.trim());
+        let arr = [];
+        lines.forEach(line => {
+            let cols = line.split('\t').map(c => c.trim());
+            if(cols.length >= 4) {
+                arr.push({
+                    year: cols[0],
+                    make: cols[1].toUpperCase(),
+                    model: cols[2].toUpperCase(),
+                    callout: cols[3]
+                });
+            }
+        });
+        return arr;
+    }
+
+    function applyTextFiltersToPool(vehicles, text, knownSubs) {
+        if (!text || vehicles.length === 0) return vehicles;
+
+        let remainderUpper = text.toUpperCase();
+        
+        let literMatch = remainderUpper.match(/\b(\d\.\d)\s*(?:L|liter|liters)\b/i);
+        let extractedLiter = literMatch ? parseFloat(literMatch[1]).toFixed(1) : "";
+
+        let driveMatch = remainderUpper.match(/\b(FWD|RWD|AWD|4WD|4X4|2WD)\b/i);
+        let extractedDrive = driveMatch ? driveMatch[1].toUpperCase() : "";
+        if (extractedDrive === "2WD") extractedDrive = "RWD";
+
+        let cylMatch = remainderUpper.match(/\b(V-?6|V-?8|V-?10|V-?12|\d{1,2}\s*CYL(?:INDER)?S?|I-?4|I-?6|L-?4|L-?6)\b/i);
+        let extractedCyl = "";
+        if (cylMatch) {
+            let s = cylMatch[1].toUpperCase().replace(/[-\s]/g, '');
+            if (s.includes('4')) extractedCyl = "4";
+            else if (s.includes('6')) extractedCyl = "6";
+            else if (s.includes('8')) extractedCyl = "8";
+            else if (s.includes('10')) extractedCyl = "10";
+            else if (s.includes('12')) extractedCyl = "12";
+        }
+
+        let filtered = [...vehicles];
+
+        if (extractedLiter) filtered = filtered.filter(v => v.liter === extractedLiter);
+        if (extractedDrive) filtered = filtered.filter(v => v.drive.includes(extractedDrive));
+        if (extractedCyl) {
+            filtered = filtered.filter(v => {
+                if (v.cyl && String(v.cyl).trim() === extractedCyl) return true;
+                let flexRegex = new RegExp(`\\b(V-?${extractedCyl}|${extractedCyl}\\s*CYL(?:INDER)?S?|I-?${extractedCyl}|L-?${extractedCyl})\\b`, 'i');
+                if (v.cyl && flexRegex.test(v.cyl)) return true;
+                if (v.sub && flexRegex.test(v.sub)) return true;
+                if (v.attrs && v.attrs.some(a => flexRegex.test(a))) return true;
+                return false;
+            });
+        }
+
+        let maskedText = text;
+        if (cylMatch) maskedText = maskedText.replace(new RegExp(`\\b${escapeRegExp(cylMatch[0])}\\b`, 'ig'), '');
+        
+        let mentionedSubs = [];
+        knownSubs.forEach(sub => {
+            let escapedSub = escapeRegExp(sub);
+            let boundaryBefore = `(^|[\\s,;\\/\\(\\)\\-])`;
+            let boundaryAfter = `([\\s,;\\/\\(\\)\\-]|$)`;
+            let normalRegex = new RegExp(`${boundaryBefore}(${escapedSub})${boundaryAfter}`, 'i');
+            if (normalRegex.test(maskedText)) {
+                mentionedSubs.push(sub);
+                maskedText = maskedText.replace(normalRegex, '$1 $3');
+            }
+        });
+
+        if (mentionedSubs.length === 0) {
+            let textWords = maskedText.split(/[\s,;\\/\\(\\)\\-]+/).filter(w => w.length > 2);
+            textWords.forEach(word => {
+                let wordRegex = new RegExp(`\\b${escapeRegExp(word)}\\b`, 'i');
+                knownSubs.forEach(sub => {
+                    if (wordRegex.test(sub)) mentionedSubs.push(sub);
+                });
+            });
+            mentionedSubs = [...new Set(mentionedSubs)];
+        }
+
+        let validMentionedSubs = mentionedSubs.filter(sub => filtered.some(v => v.sub.toUpperCase() === sub.toUpperCase()));
+        if (validMentionedSubs.length > 0) {
+            filtered = filtered.filter(v => validMentionedSubs.some(m => m.toUpperCase() === v.sub.toUpperCase()));
+        } 
+
+        return filtered;
+    }
+
+    const cartesianProduct = arrays => arrays.reduce((a, b) => a.flatMap(d => b.map(e => [...d, e])), [[]]);
+
+    function mergeKits() {
+        if (knownMakes.length === 0) {
+            return alert("WARNING: Please upload the Master Vehicle Catalog CSV first to enable Validation.");
+        }
+
+        let lists = [];
+        for(let i=0; i<currentComps; i++) {
+            let letter = String.fromCharCode(65+i);
+            let text = document.getElementById('comp'+letter).value;
+            if(!text.trim()) return alert(`Please paste data into Component ${letter}`);
+            lists.push(parsePasteAsArray(text));
+        }
+
+        // Group each list by Y|M|M
+        let groupedLists = lists.map(list => {
+            let map = {};
+            list.forEach(item => {
+                let key = `${item.year}|${item.make}|${item.model}`;
+                if(!map[key]) map[key] = [];
+                map[key].push(item.callout);
+            });
+            return map;
+        });
+
+        // Find intersections (Vehicles that exist in ALL provided lists)
+        let baseKeys = Object.keys(groupedLists[0]);
+        let commonKeys = baseKeys.filter(key => {
+            for(let i=1; i<currentComps; i++) {
+                if(!groupedLists[i][key]) return false;
+            }
+            return true;
+        });
+
+        if(commonKeys.length === 0) {
+            return alert("No matching Year/Make/Model combinations found across ALL tables.");
+        }
+
+        let mergedData = [];
+
+        commonKeys.forEach(key => {
+            let [year, make, model] = key.split('|');
+
+            // Generate all possible callout combinations for this vehicle
+            let calloutArrays = groupedLists.map(g => g[key]);
+            let combos = cartesianProduct(calloutArrays);
+
+            let vehiclePool = [];
+            if (dbTree[make] && dbTree[make][model] && dbTree[make][model][year]) {
+                vehiclePool = dbTree[make][model][year];
+            }
+
+            if (vehiclePool.length === 0) {
+                // Not in DB, dump the first combo as a warning
+                let rowData = { status: "NO_DB", year, make, model, finalCallout: "⚠️ NOT FOUND IN CATALOG" };
+                for(let i=0; i<currentComps; i++) rowData['callout'+String.fromCharCode(65+i)] = combos[0][i];
+                mergedData.push(rowData);
+                return;
+            }
+
+            let knownSubs = new Set();
+            vehiclePool.forEach(v => knownSubs.add(v.sub.toUpperCase()));
+            let knownSubsArray = [...knownSubs].sort((a,b) => b.length - a.length);
+
+            // Test every combo against the Master DB sequentially
+            combos.forEach(combo => {
+                let pool = [...vehiclePool];
+                let isValid = true;
+
+                for(let i=0; i<combo.length; i++) {
+                    pool = applyTextFiltersToPool(pool, combo[i], knownSubsArray);
+                    if(pool.length === 0) {
+                        isValid = false;
+                        break; // Silently drop impossible combinations!
+                    }
+                }
+
+                if(isValid) {
+                    let result = smartCombineArray(combo);
+                    let rowData = { status: result.conflict ? "CONFLICT" : "OK", year, make, model, finalCallout: result.text };
+                    for(let i=0; i<currentComps; i++) rowData['callout'+String.fromCharCode(65+i)] = combo[i];
+                    mergedData.push(rowData);
+                }
+            });
+        });
+
+        if(mergedData.length === 0) alert("All combinations were discarded by the Master DB logic.");
+        table.setData(mergedData);
+    }
+
+    function smartCombineArray(arr) {
+        let cleanArr = [...arr];
+        const drives = ["RWD", "AWD", "FWD", "4WD", "4x4"];
+        
+        let finalDrive = "";
+        for(let text of arr) {
+            let f = drives.find(d => new RegExp(`\\b${d}\\b`,'i').test(text));
+            if(f) { finalDrive = f; break; }
+        }
+
+        if(finalDrive) {
+            cleanArr = cleanArr.map(t => t.replace(new RegExp(`\\b${finalDrive}\\b`,'ig'), ''));
+        }
+
+        cleanArr = cleanArr.map(t => t.replace(/\b(?:w\/|with)\b/gi, '').replace(/^[,\-\(\)\s]+|[,\-\(\)\s]+$/g, '').trim());
+
+        let uniqueNotes = [];
+        cleanArr.forEach(text => {
+            if(!text) return;
+            let isSubset = false;
+            for(let i=0; i<uniqueNotes.length; i++) {
+                if(uniqueNotes[i].toLowerCase().includes(text.toLowerCase())) {
+                    isSubset = true; break;
+                }
+                // If the new text is more specific, overwrite the old short text
+                if(text.toLowerCase().includes(uniqueNotes[i].toLowerCase())) {
+                    uniqueNotes[i] = text; 
+                    isSubset = true; break;
+                }
+            }
+            if(!isSubset) uniqueNotes.push(text);
+        });
+
+        let combinedNotes = uniqueNotes.join(" & ");
+        let finalText = `${finalDrive} ${combinedNotes}`.replace(/\s{2,}/g, ' ').trim();
+
+        return { conflict: false, text: finalText };
+    }
+
+    function copyFinalData() {
+        const rawData = table.getData();
+        if(rawData.length === 0) return alert("Table is empty.");
+
+        let tsvString = "";
+        rawData.forEach((row, index) => {
+            let rowArray = [
+                row.year || "",
+                row.make || "",
+                row.model || "",
+                row.finalCallout || ""
+            ];
+            
+            rowArray = rowArray.map(cell => String(cell).replace(/\t/g, ' ').replace(/\n/g, ' '));
+            tsvString += rowArray.join('\t') + (index < rawData.length - 1 ? '\n' : '');
+        });
+
+        navigator.clipboard.writeText(tsvString).then(() => {
+            const copyBtn = document.getElementById('copyBtn');
+            const originalText = copyBtn.innerText;
+            copyBtn.innerText = "✓ COPIED!";
+            copyBtn.style.backgroundColor = "#10b981"; 
+            copyBtn.style.color = "#fff";
+            setTimeout(() => {
+                copyBtn.innerText = originalText;
+                copyBtn.style.backgroundColor = "rgba(16, 185, 129, 0.1)"; 
+                copyBtn.style.color = "var(--success-green)";
+            }, 2000);
+        }).catch(err => {
+            alert("Failed to copy data. Your browser might be blocking clipboard access.");
+        });
+    }
+</script>
+</body>
+</html>
