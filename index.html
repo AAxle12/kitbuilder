@@ -68,17 +68,20 @@
         }
         .paste-box textarea:focus { border-color: var(--da-neon); box-shadow: 0 0 10px rgba(0, 168, 232, 0.2); }
 
-        .btn-panel { display: flex; flex-direction: column; justify-content: center; gap: 12px; width: 200px; }
+        .btn-panel { display: flex; flex-direction: column; justify-content: center; gap: 10px; width: 200px; }
         
         .action-btn {
             background: rgba(0, 168, 232, 0.1); color: var(--da-neon); border: 1px solid var(--da-neon); 
-            padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; text-transform: uppercase;
-            transition: all 0.3s ease; letter-spacing: 1px; font-size: 12px;
+            padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; text-transform: uppercase;
+            transition: all 0.3s ease; letter-spacing: 1px; font-size: 11px;
         }
         .action-btn:hover { background: var(--da-neon); color: #fff; box-shadow: 0 0 15px rgba(0, 168, 232, 0.4);}
         
         .add-btn { background: rgba(245, 158, 11, 0.1); color: var(--warning-orange); border: 1px solid var(--warning-orange); }
         .add-btn:hover { background: var(--warning-orange); color: #fff; box-shadow: 0 0 15px rgba(245, 158, 11, 0.4); }
+
+        .clear-btn { background: rgba(229, 62, 62, 0.1); color: var(--warning-red); border: 1px solid var(--warning-red); }
+        .clear-btn:hover { background: var(--warning-red); color: #fff; box-shadow: 0 0 15px rgba(229, 62, 62, 0.4); }
 
         .copy-btn { background: rgba(16, 185, 129, 0.1); color: var(--success-green); border: 1px solid var(--success-green); }
         .copy-btn:hover { background: var(--success-green); color: #fff; box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);}
@@ -146,7 +149,7 @@
             </div>
             <div class="paste-box" id="boxB">
                 <label>Comp B (e.g. Rear Pads)</label>
-                <textarea id="compB" placeholder="2007&#9;DODGE&#9;CHARGER&#9;RWD"></textarea>
+                <textarea id="compB" placeholder="2007&#9;DODGE&#9;CHARGER&#9;All Models"></textarea>
             </div>
             <div class="paste-box" id="boxC" style="display:none;">
                 <label>Comp C (e.g. Front Rotors)</label>
@@ -160,6 +163,7 @@
         <div class="btn-panel">
             <button class="action-btn" onclick="mergeKits()">⚡ Validate & Merge</button>
             <button class="action-btn add-btn" onclick="addCustomRow()">➕ Add Custom Row</button>
+            <button class="action-btn clear-btn" onclick="clearAll()">🗑️ Clear All</button>
             <button class="action-btn copy-btn" id="copyBtn" onclick="copyFinalData()">📋 Copy Final Table</button>
         </div>
     </div>
@@ -220,6 +224,7 @@
         table.setColumns(getDynamicColumns(currentComps));
     }
 
+    // Keyboard delete support
     document.addEventListener('keydown', function(e) {
         if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
         if(e.key === "Delete" || e.key === "Backspace") {
@@ -234,6 +239,16 @@
         let rowData = { status: "MANUAL", year: "YYYY", make: "MAKE", model: "MODEL", finalCallout: "Type manual callout here..." };
         for(let i=0; i<currentComps; i++) rowData['callout'+String.fromCharCode(65+i)] = "";
         table.addRow(rowData, true);
+    }
+
+    function clearAll() {
+        if(confirm("Are you sure you want to clear all text boxes and the table?")) {
+            document.getElementById('compA').value = "";
+            document.getElementById('compB').value = "";
+            document.getElementById('compC').value = "";
+            document.getElementById('compD').value = "";
+            table.clearData();
+        }
     }
 
     // --- MASTER DB PARSING LOGIC ---
@@ -427,7 +442,6 @@
             lists.push(parsePasteAsArray(text));
         }
 
-        // Group each list by Y|M|M
         let groupedLists = lists.map(list => {
             let map = {};
             list.forEach(item => {
@@ -438,7 +452,6 @@
             return map;
         });
 
-        // Find intersections (Vehicles that exist in ALL provided lists)
         let baseKeys = Object.keys(groupedLists[0]);
         let commonKeys = baseKeys.filter(key => {
             for(let i=1; i<currentComps; i++) {
@@ -456,7 +469,6 @@
         commonKeys.forEach(key => {
             let [year, make, model] = key.split('|');
 
-            // Generate all possible callout combinations for this vehicle
             let calloutArrays = groupedLists.map(g => g[key]);
             let combos = cartesianProduct(calloutArrays);
 
@@ -466,7 +478,6 @@
             }
 
             if (vehiclePool.length === 0) {
-                // Not in DB, dump the first combo as a warning
                 let rowData = { status: "NO_DB", year, make, model, finalCallout: "⚠️ NOT FOUND IN CATALOG" };
                 for(let i=0; i<currentComps; i++) rowData['callout'+String.fromCharCode(65+i)] = combos[0][i];
                 mergedData.push(rowData);
@@ -477,7 +488,6 @@
             vehiclePool.forEach(v => knownSubs.add(v.sub.toUpperCase()));
             let knownSubsArray = [...knownSubs].sort((a,b) => b.length - a.length);
 
-            // Test every combo against the Master DB sequentially
             combos.forEach(combo => {
                 let pool = [...vehiclePool];
                 let isValid = true;
@@ -486,7 +496,7 @@
                     pool = applyTextFiltersToPool(pool, combo[i], knownSubsArray);
                     if(pool.length === 0) {
                         isValid = false;
-                        break; // Silently drop impossible combinations!
+                        break; 
                     }
                 }
 
@@ -509,15 +519,35 @@
         
         let finalDrive = "";
         for(let text of arr) {
-            let f = drives.find(d => new RegExp(`\\b${d}\\b`,'i').test(text));
-            if(f) { finalDrive = f; break; }
+            let match = text.match(/\b(RWD|AWD|FWD|4WD|4x4)\b/i);
+            if(match) {
+                let beforeStr = text.substring(0, match.index).toLowerCase();
+                if(!beforeStr.match(/\b(except|exc\.?|excluding)\s*$/)) {
+                    finalDrive = match[1].toUpperCase(); 
+                    break;
+                }
+            }
         }
 
         if(finalDrive) {
-            cleanArr = cleanArr.map(t => t.replace(new RegExp(`\\b${finalDrive}\\b`,'ig'), ''));
+            cleanArr = cleanArr.map(t => {
+                let matchIndex = t.toLowerCase().indexOf(finalDrive.toLowerCase());
+                if(matchIndex !== -1) {
+                    let beforeStr = t.substring(0, matchIndex).toLowerCase();
+                    if(!beforeStr.match(/\b(except|exc\.?|excluding)\s*$/)) {
+                        return t.replace(new RegExp(`\\b${finalDrive}\\b`,'ig'), '');
+                    }
+                }
+                return t;
+            });
         }
 
         cleanArr = cleanArr.map(t => t.replace(/\b(?:w\/|with)\b/gi, '').replace(/^[,\-\(\)\s]+|[,\-\(\)\s]+$/g, '').trim());
+
+        let hasSpecificNotes = cleanArr.some(t => t && !/^all models$/i.test(t));
+        if (hasSpecificNotes) {
+            cleanArr = cleanArr.map(t => t.replace(/\ball models\b/ig, '').trim());
+        }
 
         let uniqueNotes = [];
         cleanArr.forEach(text => {
@@ -527,7 +557,6 @@
                 if(uniqueNotes[i].toLowerCase().includes(text.toLowerCase())) {
                     isSubset = true; break;
                 }
-                // If the new text is more specific, overwrite the old short text
                 if(text.toLowerCase().includes(uniqueNotes[i].toLowerCase())) {
                     uniqueNotes[i] = text; 
                     isSubset = true; break;
@@ -538,6 +567,16 @@
 
         let combinedNotes = uniqueNotes.join(" & ");
         let finalText = `${finalDrive} ${combinedNotes}`.replace(/\s{2,}/g, ' ').trim();
+
+        // THE "RWD ALL MODELS" -> "RWD MODELS" FORMATTER
+        if(finalText.toLowerCase() !== "all models") {
+            finalText = finalText.replace(/\ball models\b/ig, 'Models');
+        }
+
+        // Fallback: If everything was empty but "All Models" existed originally
+        if(!finalText && arr.some(t => /all models/i.test(t))) {
+            finalText = "All Models";
+        }
 
         return { conflict: false, text: finalText };
     }
