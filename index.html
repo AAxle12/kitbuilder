@@ -56,13 +56,13 @@
         .control-panel { padding: 25px 35px; border-bottom: 1px solid var(--da-border); display: flex; gap: 20px; }
         
         .paste-grid { 
-            flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; 
+            flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; 
         }
         
         .paste-box { display: flex; flex-direction: column; }
         .paste-box label { font-size: 11px; color: var(--da-neon); font-weight: bold; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 1px;}
         .paste-box textarea {
-            width: 100%; height: 160px; padding: 12px; border-radius: 8px; border: 1px solid #334;
+            width: 100%; height: 110px; padding: 12px; border-radius: 8px; border: 1px solid #334;
             background: var(--da-input-bg); color: #fff; font-family: monospace; font-size: 11px; 
             outline: none; box-sizing: border-box; white-space: pre; overflow-wrap: normal; overflow-x: auto;
         }
@@ -86,7 +86,7 @@
         .copy-btn { background: rgba(16, 185, 129, 0.1); color: var(--success-green); border: 1px solid var(--success-green); }
         .copy-btn:hover { background: var(--success-green); color: #fff; box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);}
 
-        .table-container { padding: 25px; flex: 1; min-height: 450px; background: #0b0c10; }
+        .table-container { padding: 25px; flex: 1; min-height: 450px; background: #0b0c10; overflow-x: auto; }
         
         /* STRICT DARK MODE OVERRIDE FOR TABULATOR */
         .tabulator { background-color: #0b0c10 !important; border: 1px solid #2a2a35 !important; font-size: 12px;}
@@ -123,7 +123,7 @@
 <div class="da-container">
     <div class="da-header">
         <h1>DETROIT <span>AXLE</span> | MULTI-KIT MERGER</h1>
-        <div style="font-size: 12px; color: #888;">Validates Kit combinations directly against the Master Catalog</div>
+        <div style="font-size: 12px; color: #888;">Validates up to 12 components against the Master Catalog</div>
     </div>
 
     <div class="upload-section">
@@ -137,28 +137,32 @@
                 <option value="2" selected>2 Tables</option>
                 <option value="3">3 Tables</option>
                 <option value="4">4 Tables</option>
+                <option value="5">5 Tables</option>
+                <option value="6">6 Tables</option>
+                <option value="7">7 Tables</option>
+                <option value="8">8 Tables</option>
+                <option value="9">9 Tables</option>
+                <option value="10">10 Tables</option>
+                <option value="11">11 Tables</option>
+                <option value="12">12 Tables</option>
             </select>
         </div>
     </div>
 
     <div class="control-panel">
         <div class="paste-grid" id="paste-grid">
-            <div class="paste-box" id="boxA">
-                <label>Comp A (e.g. Front Pads)</label>
-                <textarea id="compA" placeholder="2007&#9;DODGE&#9;CHARGER&#9;Base RWD"></textarea>
-            </div>
-            <div class="paste-box" id="boxB">
-                <label>Comp B (e.g. Rear Pads)</label>
-                <textarea id="compB" placeholder="2007&#9;DODGE&#9;CHARGER&#9;All Models"></textarea>
-            </div>
-            <div class="paste-box" id="boxC" style="display:none;">
-                <label>Comp C (e.g. Front Rotors)</label>
-                <textarea id="compC" placeholder="Paste data..."></textarea>
-            </div>
-            <div class="paste-box" id="boxD" style="display:none;">
-                <label>Comp D (e.g. Rear Rotors)</label>
-                <textarea id="compD" placeholder="Paste data..."></textarea>
-            </div>
+            <div class="paste-box" id="boxA"><label>Comp A</label><textarea id="compA"></textarea></div>
+            <div class="paste-box" id="boxB"><label>Comp B</label><textarea id="compB"></textarea></div>
+            <div class="paste-box" id="boxC" style="display:none;"><label>Comp C</label><textarea id="compC"></textarea></div>
+            <div class="paste-box" id="boxD" style="display:none;"><label>Comp D</label><textarea id="compD"></textarea></div>
+            <div class="paste-box" id="boxE" style="display:none;"><label>Comp E</label><textarea id="compE"></textarea></div>
+            <div class="paste-box" id="boxF" style="display:none;"><label>Comp F</label><textarea id="compF"></textarea></div>
+            <div class="paste-box" id="boxG" style="display:none;"><label>Comp G</label><textarea id="compG"></textarea></div>
+            <div class="paste-box" id="boxH" style="display:none;"><label>Comp H</label><textarea id="compH"></textarea></div>
+            <div class="paste-box" id="boxI" style="display:none;"><label>Comp I</label><textarea id="compI"></textarea></div>
+            <div class="paste-box" id="boxJ" style="display:none;"><label>Comp J</label><textarea id="compJ"></textarea></div>
+            <div class="paste-box" id="boxK" style="display:none;"><label>Comp K</label><textarea id="compK"></textarea></div>
+            <div class="paste-box" id="boxL" style="display:none;"><label>Comp L</label><textarea id="compL"></textarea></div>
         </div>
         <div class="btn-panel">
             <button class="action-btn" onclick="mergeKits()">⚡ Validate & Merge</button>
@@ -184,27 +188,27 @@
     let currentComps = 2;
 
     const table = new Tabulator("#merge-table", {
-        data: [], layout: "fitColumns", height: "100%",
+        data: [], layout: "fitData", height: "100%",
         columns: getDynamicColumns(2)
     });
 
     function getDynamicColumns(num) {
         let cols = [
             {
-                title: "Del", width: 40, hozAlign: "center", headerSort: false,
+                title: "Del", width: 40, hozAlign: "center", headerSort: false, frozen: true,
                 formatter: function() { return "<span style='color:#e53e3e; font-size:16px; font-weight:bold; cursor:pointer;'>✕</span>"; },
                 cellClick: function(e, cell) { cell.getRow().delete(); }
             },
-            {title: "Status", field: "status", width: 130, hozAlign: "center", formatter: function(cell){
+            {title: "Status", field: "status", width: 130, hozAlign: "center", frozen: true, formatter: function(cell){
                 let val = cell.getValue();
                 if(val === "CONFLICT") return `<span class="status-badge status-conflict">❌ CONFLICT</span>`;
                 if(val === "NO_DB") return `<span class="status-badge status-db-error">❓ NOT IN DB</span>`;
                 if(val === "MANUAL") return `<span class="status-badge status-manual">🛠️ CUSTOM ROW</span>`;
                 return `<span class="status-badge status-ok">✓ VERIFIED</span>`;
             }},
-            {title: "Year", field: "year", width: 60, editor: "input"},
-            {title: "Make", field: "make", width: 100, editor: "input"},
-            {title: "Model", field: "model", width: 120, editor: "input"}
+            {title: "Year", field: "year", width: 60, editor: "input", frozen: true},
+            {title: "Make", field: "make", width: 100, editor: "input", frozen: true},
+            {title: "Model", field: "model", width: 120, editor: "input", frozen: true}
         ];
 
         for(let i=0; i<num; i++) {
@@ -212,19 +216,22 @@
             cols.push({title: `Comp ${letter}`, field: `callout${letter}`, width: 150, editor: "input"});
         }
 
-        cols.push({title: "✎ Final Callout", field: "finalCallout", editor: "input", cssClass: "col-editable"});
+        cols.push({title: "✎ Final Callout", field: "finalCallout", width: 250, editor: "input", cssClass: "col-editable"});
         return cols;
     }
 
     function updateCompUI() {
         currentComps = parseInt(document.getElementById('numComps').value);
-        document.getElementById('boxC').style.display = currentComps >= 3 ? 'flex' : 'none';
-        document.getElementById('boxD').style.display = currentComps >= 4 ? 'flex' : 'none';
-        
+        for(let i=2; i<12; i++) {
+            let letter = String.fromCharCode(65+i);
+            let box = document.getElementById('box' + letter);
+            if (box) {
+                box.style.display = currentComps >= (i + 1) ? 'flex' : 'none';
+            }
+        }
         table.setColumns(getDynamicColumns(currentComps));
     }
 
-    // Keyboard delete support
     document.addEventListener('keydown', function(e) {
         if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
         if(e.key === "Delete" || e.key === "Backspace") {
@@ -243,10 +250,11 @@
 
     function clearAll() {
         if(confirm("Are you sure you want to clear all text boxes and the table?")) {
-            document.getElementById('compA').value = "";
-            document.getElementById('compB').value = "";
-            document.getElementById('compC').value = "";
-            document.getElementById('compD').value = "";
+            for(let i=0; i<12; i++) {
+                let letter = String.fromCharCode(65+i);
+                let comp = document.getElementById('comp' + letter);
+                if (comp) comp.value = "";
+            }
             table.clearData();
         }
     }
@@ -568,12 +576,10 @@
         let combinedNotes = uniqueNotes.join(" & ");
         let finalText = `${finalDrive} ${combinedNotes}`.replace(/\s{2,}/g, ' ').trim();
 
-        // THE "RWD ALL MODELS" -> "RWD MODELS" FORMATTER
         if(finalText.toLowerCase() !== "all models") {
             finalText = finalText.replace(/\ball models\b/ig, 'Models');
         }
 
-        // Fallback: If everything was empty but "All Models" existed originally
         if(!finalText && arr.some(t => /all models/i.test(t))) {
             finalText = "All Models";
         }
