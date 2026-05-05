@@ -123,7 +123,7 @@
 <div class="da-container">
     <div class="da-header">
         <h1>DETROIT <span>AXLE</span> | MULTI-KIT MERGER</h1>
-        <div style="font-size: 12px; color: #888;">Strict Validation & Automatic Exclusion Engine Active</div>
+        <div style="font-size: 12px; color: #888;">Validates up to 12 components against the Master Catalog</div>
     </div>
 
     <div class="upload-section">
@@ -216,7 +216,7 @@
             cols.push({title: `Comp ${letter}`, field: `callout${letter}`, width: 150, editor: "input"});
         }
 
-        cols.push({title: "✎ Final Callout", field: "finalCallout", width: 250, editor: "input", cssClass: "col-editable"});
+        cols.push({title: "✎ Final Callout", field: "finalCallout", width: 280, editor: "input", cssClass: "col-editable"});
         return cols;
     }
 
@@ -363,7 +363,6 @@
         return arr;
     }
 
-    // THE STRICT FILTER ENGINE
     function applyTextFiltersToPool(vehicles, text, knownSubs) {
         if (!text || vehicles.length === 0) return vehicles;
 
@@ -451,7 +450,6 @@
             mentionedSubs = [...new Set(mentionedSubs)];
         }
 
-        // STRICT ENFORCEMENT: If the pool doesn't match the required submodel, drop it entirely.
         if (mentionedSubs.length > 0) {
             filtered = filtered.filter(v => mentionedSubs.some(m => m.toUpperCase() === v.sub.toUpperCase()));
         }
@@ -477,12 +475,16 @@
             lists.push(parsePasteAsArray(text));
         }
 
+        // DEDUPLICATION: Prevent exact duplicate rows from blowing up the Cartesian product
         let groupedLists = lists.map(list => {
             let map = {};
             list.forEach(item => {
                 let key = `${item.year}|${item.make}|${item.model}`;
                 if(!map[key]) map[key] = [];
-                map[key].push(item.callout);
+                // Only add if we haven't seen this exact callout for this vehicle yet
+                if(!map[key].includes(item.callout)) {
+                    map[key].push(item.callout);
+                }
             });
             return map;
         });
@@ -536,8 +538,12 @@
                 }
 
                 if(isValid) {
-                    let result = smartCombineArray(combo);
-                    let rowData = { status: result.conflict ? "CONFLICT" : "OK", year, make, model, finalCallout: result.text };
+                    // Check if the DB has narrowed this down to exactly ONE submodel
+                    let validSubsLeft = [...new Set(pool.map(v => v.sub.toUpperCase()))].filter(Boolean);
+                    let inferredSub = validSubsLeft.length === 1 ? validSubsLeft[0] : "";
+
+                    let result = smartCombineArray(combo, inferredSub, knownSubsArray);
+                    let rowData = { status: "OK", year, make, model, finalCallout: result.text };
                     for(let i=0; i<currentComps; i++) rowData['callout'+String.fromCharCode(65+i)] = combo[i];
                     mergedData.push(rowData);
                 }
@@ -548,16 +554,20 @@
         table.setData(mergedData);
     }
 
-    function smartCombineArray(arr) {
+    // THE ADVANCED NATIVE FORMATTING ENGINE
+    function smartCombineArray(arr, inferredSub, knownSubs) {
         let cleanArr = [...arr];
-        const drives = ["RWD", "AWD", "FWD", "4WD", "4x4"];
         
         let finalDrive = "";
-        for(let text of arr) {
+        let finalLiter = "";
+        let finalCyl = "";
+        let finalSubs = [];
+
+        // 1. Extract Drive
+        for(let text of cleanArr) {
             let match = text.match(/\b(RWD|AWD|FWD|4WD|4x4)\b/i);
             if(match) {
                 let beforeStr = text.substring(0, match.index).toLowerCase();
-                // Ensure we don't pull out an excluded drive type (e.g. "Except AWD")
                 if(!beforeStr.match(/\b(except|exc\.?|excluding|not for)\s*$/)) {
                     finalDrive = match[1].toUpperCase(); 
                     break;
@@ -565,18 +575,63 @@
             }
         }
 
-        if(finalDrive) {
-            cleanArr = cleanArr.map(t => {
-                let matchIndex = t.toLowerCase().indexOf(finalDrive.toLowerCase());
-                if(matchIndex !== -1) {
-                    let beforeStr = t.substring(0, matchIndex).toLowerCase();
+        // 2. Extract Liter
+        for(let text of cleanArr) {
+            let match = text.match(/\b(\d\.\d)\s*(?:L|liter|liters)\b/i);
+            if(match) {
+                let beforeStr = text.substring(0, match.index).toLowerCase();
+                if(!beforeStr.match(/\b(except|exc\.?|excluding|not for)\s*$/)) {
+                    finalLiter = parseFloat(match[1]).toFixed(1) + "L";
+                    break;
+                }
+            }
+        }
+
+        // 3. Extract Cyl
+        for(let text of cleanArr) {
+            let match = text.match(/\b(V-?6|V-?8|V-?10|V-?12|\d{1,2}\s*CYL(?:INDER)?S?|I-?4|I-?6|L-?4|L-?6)\b/i);
+            if(match) {
+                let beforeStr = text.substring(0, match.index).toLowerCase();
+                if(!beforeStr.match(/\b(except|exc\.?|excluding|not for)\s*$/)) {
+                    finalCyl = match[1].toUpperCase().replace(/[-\s]/g, '');
+                    if(finalCyl.includes('CYL')) finalCyl = finalCyl.replace('CYL', ' Cyl');
+                    break;
+                }
+            }
+        }
+
+        // 4. Extract Explicit Submodels
+        knownSubs.forEach(sub => {
+            let subFound = false;
+            for(let text of cleanArr) {
+                let escapedSub = escapeRegExp(sub);
+                let regex = new RegExp(`\\b${escapedSub}\\b`, 'i');
+                let match = text.match(regex);
+                if(match) {
+                    let beforeStr = text.substring(0, match.index).toLowerCase();
                     if(!beforeStr.match(/\b(except|exc\.?|excluding|not for)\s*$/)) {
-                        return t.replace(new RegExp(`\\b${finalDrive}\\b`,'ig'), '');
+                        subFound = true;
+                        break;
                     }
                 }
-                return t;
-            });
+            }
+            if(subFound && !finalSubs.includes(sub.toUpperCase())) {
+                finalSubs.push(sub.toUpperCase());
+            }
+        });
+
+        // 5. Inject DB Inferred Submodel if no explicit submodels were found
+        if (finalSubs.length === 0 && inferredSub) {
+            finalSubs.push(inferredSub.toUpperCase());
         }
+
+        // 6. Scrub extracted elements from arrays so they don't duplicate
+        if(finalDrive) cleanArr = cleanArr.map(t => t.replace(new RegExp(`\\b${finalDrive}\\b`,'ig'), ''));
+        if(finalLiter) cleanArr = cleanArr.map(t => t.replace(new RegExp(`\\b${finalLiter.replace('L','')}\\s*(?:L|liter|liters)?\\b`,'ig'), ''));
+        if(finalCyl) cleanArr = cleanArr.map(t => t.replace(new RegExp(`\\b${finalCyl.replace(' ','\\s*')}(?:INDERS?)?\\b`,'ig'), ''));
+        finalSubs.forEach(sub => {
+            cleanArr = cleanArr.map(t => t.replace(new RegExp(`\\b${escapeRegExp(sub)}\\b`,'ig'), ''));
+        });
 
         cleanArr = cleanArr.map(t => t.replace(/\b(?:w\/|with|for)\b/gi, '').replace(/^[,\-\(\)\s]+|[,\-\(\)\s]+$/g, '').trim());
 
@@ -601,8 +656,24 @@
             if(!isSubset) uniqueNotes.push(text);
         });
 
+        // 7. Final Clean Assembly
+        let prefixParts = [];
+        if(finalDrive) prefixParts.push(finalDrive);
+        if(finalSubs.length > 0) prefixParts.push(finalSubs.join('/'));
+        if(finalLiter) prefixParts.push(finalLiter);
+        if(finalCyl) prefixParts.push(finalCyl);
+
+        let prefix = prefixParts.join(" ");
         let combinedNotes = uniqueNotes.join(" & ");
-        let finalText = `${finalDrive} ${combinedNotes}`.replace(/\s{2,}/g, ' ').trim();
+
+        let finalText = "";
+        if (prefix && combinedNotes) {
+            finalText = `${prefix} - ${combinedNotes}`;
+        } else if (prefix) {
+            finalText = prefix;
+        } else if (combinedNotes) {
+            finalText = combinedNotes;
+        }
 
         if(finalText.toLowerCase() !== "all models") {
             finalText = finalText.replace(/\ball models\b/ig, 'Models');
@@ -612,7 +683,7 @@
             finalText = "All Models";
         }
 
-        return { conflict: false, text: finalText };
+        return { conflict: false, text: finalText.replace(/\s{2,}/g, ' ').trim() };
     }
 
     function copyFinalData() {
