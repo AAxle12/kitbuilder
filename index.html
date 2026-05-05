@@ -123,7 +123,7 @@
 <div class="da-container">
     <div class="da-header">
         <h1>DETROIT <span>AXLE</span> | MULTI-KIT MERGER</h1>
-        <div style="font-size: 12px; color: #888;">Validates up to 12 components against the Master Catalog</div>
+        <div style="font-size: 12px; color: #888;">Strict Validation & Automatic Exclusion Engine Active</div>
     </div>
 
     <div class="upload-section">
@@ -363,6 +363,7 @@
         return arr;
     }
 
+    // THE STRICT FILTER ENGINE
     function applyTextFiltersToPool(vehicles, text, knownSubs) {
         if (!text || vehicles.length === 0) return vehicles;
 
@@ -450,6 +451,7 @@
             mentionedSubs = [...new Set(mentionedSubs)];
         }
 
+        // STRICT ENFORCEMENT
         if (mentionedSubs.length > 0) {
             filtered = filtered.filter(v => mentionedSubs.some(m => m.toUpperCase() === v.sub.toUpperCase()));
         }
@@ -475,13 +477,12 @@
             lists.push(parsePasteAsArray(text));
         }
 
-        // DEDUPLICATION: Prevent exact duplicate rows from blowing up the Cartesian product
+        // DEDUPLICATION: Prevent exact duplicate rows
         let groupedLists = lists.map(list => {
             let map = {};
             list.forEach(item => {
                 let key = `${item.year}|${item.make}|${item.model}`;
                 if(!map[key]) map[key] = [];
-                // Only add if we haven't seen this exact callout for this vehicle yet
                 if(!map[key].includes(item.callout)) {
                     map[key].push(item.callout);
                 }
@@ -538,7 +539,6 @@
                 }
 
                 if(isValid) {
-                    // Check if the DB has narrowed this down to exactly ONE submodel
                     let validSubsLeft = [...new Set(pool.map(v => v.sub.toUpperCase()))].filter(Boolean);
                     let inferredSub = validSubsLeft.length === 1 ? validSubsLeft[0] : "";
 
@@ -563,7 +563,6 @@
         let finalCyl = "";
         let finalSubs = [];
 
-        // 1. Extract Drive
         for(let text of cleanArr) {
             let match = text.match(/\b(RWD|AWD|FWD|4WD|4x4)\b/i);
             if(match) {
@@ -575,7 +574,6 @@
             }
         }
 
-        // 2. Extract Liter
         for(let text of cleanArr) {
             let match = text.match(/\b(\d\.\d)\s*(?:L|liter|liters)\b/i);
             if(match) {
@@ -587,7 +585,6 @@
             }
         }
 
-        // 3. Extract Cyl
         for(let text of cleanArr) {
             let match = text.match(/\b(V-?6|V-?8|V-?10|V-?12|\d{1,2}\s*CYL(?:INDER)?S?|I-?4|I-?6|L-?4|L-?6)\b/i);
             if(match) {
@@ -600,10 +597,12 @@
             }
         }
 
-        // 4. Extract Explicit Submodels
+        // MEMORY-WIPE PARSER: Prevents 'SXT Plus' from accidentally matching 'SXT'
+        let tempArrForSubs = [...cleanArr];
         knownSubs.forEach(sub => {
             let subFound = false;
-            for(let text of cleanArr) {
+            for(let i=0; i < tempArrForSubs.length; i++) {
+                let text = tempArrForSubs[i];
                 let escapedSub = escapeRegExp(sub);
                 let regex = new RegExp(`\\b${escapedSub}\\b`, 'i');
                 let match = text.match(regex);
@@ -611,7 +610,8 @@
                     let beforeStr = text.substring(0, match.index).toLowerCase();
                     if(!beforeStr.match(/\b(except|exc\.?|excluding|not for)\s*$/)) {
                         subFound = true;
-                        break;
+                        // Wipe it from temp array so smaller subsets don't trigger it!
+                        tempArrForSubs[i] = text.replace(regex, ' '); 
                     }
                 }
             }
@@ -620,12 +620,10 @@
             }
         });
 
-        // 5. Inject DB Inferred Submodel if no explicit submodels were found
         if (finalSubs.length === 0 && inferredSub) {
             finalSubs.push(inferredSub.toUpperCase());
         }
 
-        // 6. Scrub extracted elements from arrays so they don't duplicate
         if(finalDrive) cleanArr = cleanArr.map(t => t.replace(new RegExp(`\\b${finalDrive}\\b`,'ig'), ''));
         if(finalLiter) cleanArr = cleanArr.map(t => t.replace(new RegExp(`\\b${finalLiter.replace('L','')}\\s*(?:L|liter|liters)?\\b`,'ig'), ''));
         if(finalCyl) cleanArr = cleanArr.map(t => t.replace(new RegExp(`\\b${finalCyl.replace(' ','\\s*')}(?:INDERS?)?\\b`,'ig'), ''));
@@ -656,10 +654,10 @@
             if(!isSubset) uniqueNotes.push(text);
         });
 
-        // 7. Final Clean Assembly
+        // 7. Final Clean Assembly (With Semicolon Note Splitter)
         let prefixParts = [];
         if(finalDrive) prefixParts.push(finalDrive);
-        if(finalSubs.length > 0) prefixParts.push(finalSubs.join('/'));
+        if(finalSubs.length > 0) prefixParts.push(finalSubs.join(', '));
         if(finalLiter) prefixParts.push(finalLiter);
         if(finalCyl) prefixParts.push(finalCyl);
 
@@ -668,7 +666,7 @@
 
         let finalText = "";
         if (prefix && combinedNotes) {
-            finalText = `${prefix} - ${combinedNotes}`;
+            finalText = `${prefix}; ${combinedNotes}`;
         } else if (prefix) {
             finalText = prefix;
         } else if (combinedNotes) {
