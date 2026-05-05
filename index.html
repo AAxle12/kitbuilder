@@ -123,7 +123,7 @@
 <div class="da-container">
     <div class="da-header">
         <h1>DETROIT <span>AXLE</span> | MULTI-KIT MERGER</h1>
-        <div style="font-size: 12px; color: #888;">Validates up to 12 components against the Master Catalog</div>
+        <div style="font-size: 12px; color: #888;">Strict Validation & Automatic Exclusion Engine Active</div>
     </div>
 
     <div class="upload-section">
@@ -363,22 +363,30 @@
         return arr;
     }
 
+    // THE STRICT FILTER ENGINE
     function applyTextFiltersToPool(vehicles, text, knownSubs) {
         if (!text || vehicles.length === 0) return vehicles;
 
         let remainderUpper = text.toUpperCase();
+        const exclusionPattern = `\\b(?:except|exc\\.?|excluding|not for)\\s+`;
         
-        let literMatch = remainderUpper.match(/\b(\d\.\d)\s*(?:L|liter|liters)\b/i);
-        let extractedLiter = literMatch ? parseFloat(literMatch[1]).toFixed(1) : "";
+        let literRegex = new RegExp(`(${exclusionPattern})?(\\d\\.\\d)\\s*(?:L|liter|liters)\\b`, 'i');
+        let literMatch = remainderUpper.match(literRegex);
+        let isLiterExcluded = literMatch && literMatch[1] ? true : false;
+        let extractedLiter = literMatch ? parseFloat(literMatch[2]).toFixed(1) : "";
 
-        let driveMatch = remainderUpper.match(/\b(FWD|RWD|AWD|4WD|4X4|2WD)\b/i);
-        let extractedDrive = driveMatch ? driveMatch[1].toUpperCase() : "";
+        let driveRegex = new RegExp(`(${exclusionPattern})?(FWD|RWD|AWD|4WD|4X4|2WD)\\b`, 'i');
+        let driveMatch = remainderUpper.match(driveRegex);
+        let isDriveExcluded = driveMatch && driveMatch[1] ? true : false;
+        let extractedDrive = driveMatch ? driveMatch[2].toUpperCase() : "";
         if (extractedDrive === "2WD") extractedDrive = "RWD";
 
-        let cylMatch = remainderUpper.match(/\b(V-?6|V-?8|V-?10|V-?12|\d{1,2}\s*CYL(?:INDER)?S?|I-?4|I-?6|L-?4|L-?6)\b/i);
+        let cylRegex = new RegExp(`(${exclusionPattern})?(V-?6|V-?8|V-?10|V-?12|\\d{1,2}\\s*CYL(?:INDER)?S?|I-?4|I-?6|L-?4|L-?6)\\b`, 'i');
+        let cylMatch = remainderUpper.match(cylRegex);
+        let isCylExcluded = cylMatch && cylMatch[1] ? true : false;
         let extractedCyl = "";
         if (cylMatch) {
-            let s = cylMatch[1].toUpperCase().replace(/[-\s]/g, '');
+            let s = cylMatch[2].toUpperCase().replace(/[-\s]/g, '');
             if (s.includes('4')) extractedCyl = "4";
             else if (s.includes('6')) extractedCyl = "6";
             else if (s.includes('8')) extractedCyl = "8";
@@ -388,16 +396,24 @@
 
         let filtered = [...vehicles];
 
-        if (extractedLiter) filtered = filtered.filter(v => v.liter === extractedLiter);
-        if (extractedDrive) filtered = filtered.filter(v => v.drive.includes(extractedDrive));
+        if (extractedLiter) {
+            filtered = filtered.filter(v => isLiterExcluded ? v.liter !== extractedLiter : v.liter === extractedLiter);
+        }
+        
+        if (extractedDrive) {
+            filtered = filtered.filter(v => isDriveExcluded ? !v.drive.includes(extractedDrive) : v.drive.includes(extractedDrive));
+        }
+        
         if (extractedCyl) {
             filtered = filtered.filter(v => {
-                if (v.cyl && String(v.cyl).trim() === extractedCyl) return true;
+                let match = false;
+                if (v.cyl && String(v.cyl).trim() === extractedCyl) match = true;
                 let flexRegex = new RegExp(`\\b(V-?${extractedCyl}|${extractedCyl}\\s*CYL(?:INDER)?S?|I-?${extractedCyl}|L-?${extractedCyl})\\b`, 'i');
-                if (v.cyl && flexRegex.test(v.cyl)) return true;
-                if (v.sub && flexRegex.test(v.sub)) return true;
-                if (v.attrs && v.attrs.some(a => flexRegex.test(a))) return true;
-                return false;
+                if (!match && v.cyl && flexRegex.test(v.cyl)) match = true;
+                if (!match && v.sub && flexRegex.test(v.sub)) match = true;
+                if (!match && v.attrs && v.attrs.some(a => flexRegex.test(a))) match = true;
+                
+                return isCylExcluded ? !match : match;
             });
         }
 
@@ -405,18 +421,26 @@
         if (cylMatch) maskedText = maskedText.replace(new RegExp(`\\b${escapeRegExp(cylMatch[0])}\\b`, 'ig'), '');
         
         let mentionedSubs = [];
+        let excludedSubs = [];
+
         knownSubs.forEach(sub => {
             let escapedSub = escapeRegExp(sub);
             let boundaryBefore = `(^|[\\s,;\\/\\(\\)\\-])`;
             let boundaryAfter = `([\\s,;\\/\\(\\)\\-]|$)`;
+            
+            let exceptRegex = new RegExp(`\\b(?:except|exc\\.?|excluding|not for)\\s+(${escapedSub})${boundaryAfter}`, 'i');
             let normalRegex = new RegExp(`${boundaryBefore}(${escapedSub})${boundaryAfter}`, 'i');
-            if (normalRegex.test(maskedText)) {
+
+            if (exceptRegex.test(maskedText)) {
+                excludedSubs.push(sub);
+                maskedText = maskedText.replace(exceptRegex, ' ');
+            } else if (normalRegex.test(maskedText)) {
                 mentionedSubs.push(sub);
-                maskedText = maskedText.replace(normalRegex, '$1 $3');
+                maskedText = maskedText.replace(normalRegex, ' ');
             }
         });
 
-        if (mentionedSubs.length === 0) {
+        if (mentionedSubs.length === 0 && excludedSubs.length === 0) {
             let textWords = maskedText.split(/[\s,;\\/\\(\\)\\-]+/).filter(w => w.length > 2);
             textWords.forEach(word => {
                 let wordRegex = new RegExp(`\\b${escapeRegExp(word)}\\b`, 'i');
@@ -427,10 +451,13 @@
             mentionedSubs = [...new Set(mentionedSubs)];
         }
 
-        let validMentionedSubs = mentionedSubs.filter(sub => filtered.some(v => v.sub.toUpperCase() === sub.toUpperCase()));
-        if (validMentionedSubs.length > 0) {
-            filtered = filtered.filter(v => validMentionedSubs.some(m => m.toUpperCase() === v.sub.toUpperCase()));
-        } 
+        // STRICT ENFORCEMENT: If the pool doesn't match the required submodel, drop it entirely.
+        if (mentionedSubs.length > 0) {
+            filtered = filtered.filter(v => mentionedSubs.some(m => m.toUpperCase() === v.sub.toUpperCase()));
+        }
+        if (excludedSubs.length > 0) {
+            filtered = filtered.filter(v => !excludedSubs.some(m => m.toUpperCase() === v.sub.toUpperCase()));
+        }
 
         return filtered;
     }
@@ -517,7 +544,7 @@
             });
         });
 
-        if(mergedData.length === 0) alert("All combinations were discarded by the Master DB logic.");
+        if(mergedData.length === 0) alert("All combinations were discarded by the Master DB validation. Check your inputs for impossible kits.");
         table.setData(mergedData);
     }
 
@@ -530,7 +557,8 @@
             let match = text.match(/\b(RWD|AWD|FWD|4WD|4x4)\b/i);
             if(match) {
                 let beforeStr = text.substring(0, match.index).toLowerCase();
-                if(!beforeStr.match(/\b(except|exc\.?|excluding)\s*$/)) {
+                // Ensure we don't pull out an excluded drive type (e.g. "Except AWD")
+                if(!beforeStr.match(/\b(except|exc\.?|excluding|not for)\s*$/)) {
                     finalDrive = match[1].toUpperCase(); 
                     break;
                 }
@@ -542,7 +570,7 @@
                 let matchIndex = t.toLowerCase().indexOf(finalDrive.toLowerCase());
                 if(matchIndex !== -1) {
                     let beforeStr = t.substring(0, matchIndex).toLowerCase();
-                    if(!beforeStr.match(/\b(except|exc\.?|excluding)\s*$/)) {
+                    if(!beforeStr.match(/\b(except|exc\.?|excluding|not for)\s*$/)) {
                         return t.replace(new RegExp(`\\b${finalDrive}\\b`,'ig'), '');
                     }
                 }
@@ -550,7 +578,7 @@
             });
         }
 
-        cleanArr = cleanArr.map(t => t.replace(/\b(?:w\/|with)\b/gi, '').replace(/^[,\-\(\)\s]+|[,\-\(\)\s]+$/g, '').trim());
+        cleanArr = cleanArr.map(t => t.replace(/\b(?:w\/|with|for)\b/gi, '').replace(/^[,\-\(\)\s]+|[,\-\(\)\s]+$/g, '').trim());
 
         let hasSpecificNotes = cleanArr.some(t => t && !/^all models$/i.test(t));
         if (hasSpecificNotes) {
